@@ -110,7 +110,7 @@ class Predictor(BasePredictor):
         self,
         prompt: str = Input(
             description="Input prompt",
-            default="A 360 photo of a forest, 360 view",
+            default="grass",
         ),
         negative_prompt: str = Input(
             description="Input Negative Prompt",
