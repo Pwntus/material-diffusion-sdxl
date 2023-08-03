@@ -1,0 +1,4 @@
+.vscode/
+.cog/
+__pycache__/
+diffusers-cache/
