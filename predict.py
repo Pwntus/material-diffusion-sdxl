@@ -37,6 +37,7 @@ class KarrasDPM:
     def from_config(config):
         return DPMSolverMultistepScheduler.from_config(config, use_karras_sigmas=True)
 
+
 SCHEDULERS = {
     "DDIM": DDIMScheduler,
     "DPMSolverMultistep": DPMSolverMultistepScheduler,
@@ -47,16 +48,17 @@ SCHEDULERS = {
     "PNDM": PNDMScheduler,
 }
 
-def patch_conv(**patch):
-    cls = torch.nn.Conv2d
-    init = cls.__init__
+# def patch_conv(**patch):
+#    cls = torch.nn.Conv2d
+#    init = cls.__init__
 
-    def __init__(self, *args, **kwargs):
-        return init(self, *args, **kwargs, **patch)
+#    def __init__(self, *args, **kwargs):
+#        return init(self, *args, **kwargs, **patch)
 
-    cls.__init__ = __init__
+#    cls.__init__ = __init__
 
-patch_conv(padding_mode="circular")
+# patch_conv(padding_mode="circular")
+
 
 class Predictor(BasePredictor):
     def setup(self):
@@ -67,7 +69,8 @@ class Predictor(BasePredictor):
         self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
             SAFETY_CACHE, torch_dtype=torch.float16
         ).to("cuda")
-        self.feature_extractor = CLIPImageProcessor.from_pretrained(FEATURE_EXTRACTOR)
+        self.feature_extractor = CLIPImageProcessor.from_pretrained(
+            FEATURE_EXTRACTOR)
 
         print("Loading sdxl txt2img pipeline...")
         self.txt2img_pipe = DiffusionPipeline.from_pretrained(
@@ -77,6 +80,12 @@ class Predictor(BasePredictor):
             variant="fp16",
         )
         self.txt2img_pipe.to("cuda")
+
+        targets = [self.txt2img_pipe.vae, self.txt2img_pipe.unet]
+        for target in targets:
+            for module in target.modules():
+                if isinstance(module, torch.nn.Conv2d):
+                    module.padding_mode = "circular"
 
         print("Loading SDXL refiner pipeline...")
         print("Loading refiner pipeline...")
@@ -92,7 +101,6 @@ class Predictor(BasePredictor):
 
         print("setup took: ", time.time() - start)
 
-
     def run_safety_checker(self, image):
         safety_checker_input = self.feature_extractor(image, return_tensors="pt").to(
             "cuda"
@@ -103,7 +111,6 @@ class Predictor(BasePredictor):
             clip_input=safety_checker_input.pixel_values.to(torch.float16),
         )
         return image, has_nsfw_concept
-
 
     @torch.inference_mode()
     def predict(
@@ -150,7 +157,8 @@ class Predictor(BasePredictor):
         ),
         refine: str = Input(
             description="Which refine style to use",
-            choices=["no_refiner", "expert_ensemble_refiner", "base_image_refiner"],
+            choices=["no_refiner", "expert_ensemble_refiner",
+                     "base_image_refiner"],
             default="no_refiner",
         ),
         high_noise_frac: float = Input(
@@ -172,7 +180,7 @@ class Predictor(BasePredictor):
         if seed is None:
             seed = int.from_bytes(os.urandom(2), "big")
         print(f"Using seed: {seed}")
-        
+
         sdxl_kwargs = {}
         print(f"Prompt: {prompt}")
         print("txt2img mode")
@@ -192,7 +200,8 @@ class Predictor(BasePredictor):
             pipe.watermark = None
             self.refiner.watermark = None
 
-        pipe.scheduler = SCHEDULERS[scheduler].from_config(pipe.scheduler.config)
+        pipe.scheduler = SCHEDULERS[scheduler].from_config(
+            pipe.scheduler.config)
         generator = torch.Generator("cuda").manual_seed(seed)
 
         common_args = {
